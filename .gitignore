@@ -1,0 +1,35 @@
+# Build
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.log
+*.vspscc
+*.vssscc
+.vs/
+*.slnx
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# User-specific
+*.rsuser
+*.userprefs
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Docker
+.docker/

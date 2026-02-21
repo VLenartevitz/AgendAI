@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/AgendAI.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    container_name: agendai-api
+
+  web:
+    build:
+      context: .
+      dockerfile: src/AgendAI.Web/Dockerfile
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ApiBaseUrl=http://api:8080
+    depends_on:
+      - api
+    container_name: agendai-web
