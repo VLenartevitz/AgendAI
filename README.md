@@ -16,7 +16,7 @@ AgendAI/
 
 ## Pré-requisitos
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Docker](https://www.docker.com/get-started) (opcional, para rodar em containers)
 
 ## Desenvolvimento local (sem Docker)
@@ -43,7 +43,8 @@ AgendAI/
 4. Abrir no navegador:
    - Blazor: https://localhost:5001 (ou a porta exibida no terminal)
    - API: https://localhost:5000 (ou a porta exibida no terminal)
-
+   - **PostgreSQL:** localhost:5432 (`database=agendai`, `user=agendai`, `password=agendai123`)
+	- 
 ## Rodar com Docker
 
 Na raiz do repositório:
@@ -73,6 +74,7 @@ docker compose down
 |----------------|-----------------------------|----------------|
 | **AgendAI.Web** | Blazor Server (UI)          | 5001           |
 | **AgendAI.Api** | API REST (controllers)      | 5000           |
+| **PostgreSQL**  | Banco de dados              | 5432           |
 
 ## Licença
 

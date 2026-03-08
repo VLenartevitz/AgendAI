@@ -1,4 +1,21 @@
 services:
+  db:
+    image: postgres:17-alpine
+    container_name: agendai-db
+    environment:
+      - POSTGRES_DB=agendai
+      - POSTGRES_USER=agendai
+      - POSTGRES_PASSWORD=agendai123
+    ports:
+      - "5432:5432"
+    volumes:
+      - agendai-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agendai -d agendai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -7,6 +24,10 @@ services:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=agendai;Username=agendai;Password=agendai123
+    depends_on:
+      db:
+        condition: service_healthy
     container_name: agendai-api
 
   web:
@@ -21,3 +42,6 @@ services:
     depends_on:
       - api
     container_name: agendai-web
+
+volumes:
+  agendai-db-data:
