@@ -1,7 +1,42 @@
-﻿@page "/"
+@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Login</PageTitle>
 
-<h1>Hello, world!</h1>
+<main class="login-page">
+    <h1>Login</h1>
 
-Welcome to your new app.
+    <form class="login-form" @onsubmit="GoToDashboard" @onsubmit:preventDefault>
+        <input @bind="email" type="email" placeholder="E-mail" />
+        <input @bind="password" type="password" placeholder="Senha" />
+        <button type="submit">Entrar</button>
+    </form>
+
+    <p class="api-message">@apiMessage</p>
+</main>
+
+@code {
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string apiMessage = "Carregando mensagem da API...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            apiMessage = await client.GetStringAsync("/api/info/message");
+        }
+        catch
+        {
+            apiMessage = "Nao foi possivel carregar a mensagem da API.";
+        }
+    }
+
+    private void GoToDashboard()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}
