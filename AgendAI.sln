@@ -6,6 +6,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AgendAI.Web", "src\AgendAI.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AgendAI.Api", "src\AgendAI.Api\AgendAI.Api.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AgendAI.Tests", "tests\AgendAI.Tests\AgendAI.Tests.csproj", "{BAAAC820-A5A1-4202-9B3B-53398355130D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,5 +22,9 @@ Global
 		{B2C3D4E5-F6A7-8901-BCDE-F12345678901}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2C3D4E5-F6A7-8901-BCDE-F12345678901}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2C3D4E5-F6A7-8901-BCDE-F12345678901}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BAAAC820-A5A1-4202-9B3B-53398355130D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BAAAC820-A5A1-4202-9B3B-53398355130D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BAAAC820-A5A1-4202-9B3B-53398355130D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BAAAC820-A5A1-4202-9B3B-53398355130D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
