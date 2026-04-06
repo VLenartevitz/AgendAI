@@ -2,25 +2,55 @@
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
+@inject UserSessionState SessionState
 
 <PageTitle>Login</PageTitle>
 
-<main class="login-page">
-    <h1>Login</h1>
+<main class="login-shell">
+    <section class="login-brand-panel">
+        <div class="login-brand-copy">
+            <span class="eyebrow">Plataforma AgendAI</span>
+            <h1>Atendimento, agenda e lembretes em um fluxo mais inteligente</h1>
+            <p>
+                Organize clientes, salve reunioes no banco e prepare a base para confirmacoes automaticas por WhatsApp.
+            </p>
+        </div>
 
-    <form class="login-form" @onsubmit="GoToDashboard" @onsubmit:preventDefault>
-        <input @bind="email" type="email" placeholder="E-mail" />
-        <input @bind="password" type="password" placeholder="Senha" />
-        <button type="submit">Entrar</button>
-    </form>
+        <div class="logo-showcase">
+            <img class="logo-showcase-image" src="images/logoAgendAIWhite.jpeg" alt="Logo AgendAI" />
+        </div>
+    </section>
 
-    <p class="api-message">@apiMessage</p>
+    <section class="login-page">
+        <img class="login-logo" src="images/logoAgendAI.png" alt="AgendAI" />
+        <h2>Entrar no sistema</h2>
+        <p class="api-message">@apiMessage</p>
+
+        <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
+            <input @bind="fullName" type="text" placeholder="Seu nome" />
+            <input @bind="businessName" type="text" placeholder="Nome do negocio" />
+            <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
+            <input @bind="email" type="email" placeholder="E-mail" />
+            <input @bind="password" type="password" placeholder="Senha" />
+            <button type="submit" disabled="@isSubmitting">@(isSubmitting ? "Entrando..." : "Entrar ou criar conta")</button>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="api-message">@statusMessage</p>
+        }
+    </section>
 </main>
 
 @code {
+    private string fullName = string.Empty;
+    private string businessName = string.Empty;
+    private string whatsAppNumber = string.Empty;
     private string email = string.Empty;
     private string password = string.Empty;
     private string apiMessage = "Carregando mensagem da API...";
+    private string statusMessage = string.Empty;
+    private bool isSubmitting;
 
     protected override async Task OnInitializedAsync()
     {
@@ -31,12 +61,57 @@
         }
         catch
         {
-            apiMessage = "Nao foi possivel carregar a mensagem da API.";
+            apiMessage = "Conexao com a API indisponivel no momento.";
         }
     }
 
-    private void GoToDashboard()
+    private async Task GoToDashboardAsync()
     {
-        Navigation.NavigateTo("/dashboard");
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            statusMessage = "Informe e-mail e senha para continuar.";
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var request = new UserSessionRequest(
+                fullName,
+                email,
+                password,
+                businessName,
+                whatsAppNumber);
+
+            var response = await client.PostAsJsonAsync("/api/users/session", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                statusMessage = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? "Senha incorreta para este e-mail."
+                    : "Nao foi possivel iniciar a sessao agora.";
+                return;
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<UserSummaryDto>();
+            if (user is null)
+            {
+                statusMessage = "Resposta inesperada da API.";
+                return;
+            }
+
+            SessionState.SetUser(user);
+            Navigation.NavigateTo($"/dashboard/{user.Id}");
+        }
+        catch
+        {
+            statusMessage = "Erro ao conectar com a API.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
     }
 }

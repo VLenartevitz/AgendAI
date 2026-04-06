@@ -1,28 +1,38 @@
 services:
   api:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: agendai-api-dev:local
+    build:
+      target: build
     working_dir: /src/src/AgendAI.Api
     command: dotnet watch run --no-launch-profile --urls http://0.0.0.0:8080
     volumes:
       - ./:/src
+      - /src/src/AgendAI.Api/bin
+      - /src/src/AgendAI.Api/obj
       - agendai-nuget:/root/.nuget/packages
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:8080
       - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=agendai;Username=agendai;Password=agendai123
 
   web:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: agendai-web-dev:local
+    build:
+      target: build
     working_dir: /src/src/AgendAI.Web
     command: dotnet watch run --no-launch-profile --urls http://0.0.0.0:8080
     volumes:
       - ./:/src
+      - /src/src/AgendAI.Web/bin
+      - /src/src/AgendAI.Web/obj
       - agendai-nuget:/root/.nuget/packages
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:8080
       - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
       - ApiBaseUrl=http://api:8080
 
 volumes:

@@ -9,6 +9,6 @@ public class InfoController : ControllerBase
     [HttpGet("message")]
     public ActionResult<string> GetMessage()
     {
-        return "Texto vindo da API: bem-vindo ao AgendAIsssssssssssssssssssssss.";
+        return "Texto vindo da API: bem-vindo ao AGENDAdddddI.";
     }
 }
