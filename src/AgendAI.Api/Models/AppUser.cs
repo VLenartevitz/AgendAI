@@ -10,5 +10,5 @@ public sealed class AppUser
     public string? WhatsAppNumber { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime LastAccessAtUtc { get; set; } = DateTime.UtcNow;
-    public List<Meeting> Meetings { get; set; } = [];
+    public List<Meeting> CreatedMeetings { get; set; } = [];
 }

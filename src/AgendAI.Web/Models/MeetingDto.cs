@@ -2,7 +2,8 @@ namespace AgendAI.Web.Models;
 
 public sealed record MeetingDto(
     Guid Id,
-    Guid UserId,
+    Guid EnterpriseId,
+    Guid? CreatedByUserId,
     string Title,
     string ClientName,
     DateOnly ScheduledDate,

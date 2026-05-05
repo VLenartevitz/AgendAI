@@ -9,4 +9,5 @@ public sealed record CreateMeetingRequest(
     string? ClientPhone,
     string? Notes,
     string? Status,
-    string? SourceChannel);
+    string? SourceChannel,
+    Guid? CreatedByUserId);

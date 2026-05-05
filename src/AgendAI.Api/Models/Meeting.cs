@@ -3,8 +3,10 @@ namespace AgendAI.Api.Models;
 public sealed class Meeting
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid UserId { get; set; }
-    public AppUser? User { get; set; }
+    public Guid EnterpriseId { get; set; }
+    public Enterprise? Enterprise { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public AppUser? CreatedByUser { get; set; }
     public string Title { get; set; } = string.Empty;
     public string ClientName { get; set; } = string.Empty;
     public string? ClientPhone { get; set; }

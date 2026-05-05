@@ -1,5 +1,5 @@
-@page "/dashboard"
-@page "/dashboard/{UserId:guid}"
+@page "/e/{EnterpriseSlug}"
+@page "/e/{EnterpriseSlug}/dashboard"
 @rendermode InteractiveServer
 @using System.Globalization
 @inject IHttpClientFactory HttpClientFactory
@@ -16,11 +16,11 @@
 
     <header class="dashboard-hero">
         <div>
-            <img class="hero-logo" src="images/logoAgendAI.png" alt="AgendAI" />
+            <img class="hero-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
             <span class="eyebrow">@HeroEyebrow</span>
-            <h1>Agenda inteligente para equipes que nao podem perder horarios</h1>
+            <h1>Reunioes da @EnterpriseName</h1>
             <p class="subtitle">
-                Organize compromissos, acompanhe clientes e mantenha o fluxo de atendimento salvo no banco em tempo real.
+                Acompanhe os compromissos ligados a esta Enterprise e mantenha o fluxo de atendimento salvo no banco em tempo real.
             </p>
         </div>
         <div class="hero-actions">
@@ -32,8 +32,13 @@
     <section class="dashboard-stats">
         <article class="stat-card">
             <p>Usuario ativo</p>
-            <h3>@(currentUser?.FullName ?? "--")</h3>
-            <span>@(currentUser?.Email ?? "Sem sessao carregada")</span>
+            <h3>@(currentUser?.FullName ?? "Visitante")</h3>
+            <span>@(currentUser?.Email ?? "Acesse pela tela inicial para criar ou remover reunioes")</span>
+        </article>
+        <article class="stat-card">
+            <p>Enterprise</p>
+            <h3>@EnterpriseName</h3>
+            <span>@EnterpriseSlug</span>
         </article>
         <article class="stat-card">
             <p>Reunioes hoje</p>
@@ -189,7 +194,7 @@
 
 @code {
     [Parameter]
-    public Guid UserId { get; set; }
+    public string? EnterpriseSlug { get; set; }
 
     private readonly CultureInfo _culture = new("pt-BR");
     private DateTime _currentMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
@@ -197,6 +202,7 @@
     private List<MeetingDto> _meetings = [];
 
     private UserSummaryDto? currentUser;
+    private EnterpriseDto? currentEnterprise;
     private string newTitle = string.Empty;
     private string newClient = string.Empty;
     private string newClientPhone = string.Empty;
@@ -236,7 +242,13 @@
         $"{StartOfWeek(DateTime.Today).ToString("dd MMM", _culture)} - {EndOfWeek(DateTime.Today).ToString("dd MMM", _culture)}";
 
     private string HeroEyebrow =>
-        currentUser is null ? "AgendAI" : $"{currentUser.BusinessName} | {currentUser.FullName}";
+        currentUser is null ? "AgendAI" : $"{EnterpriseName} | {currentUser.FullName}";
+
+    private string CurrentEnterpriseSlug => string.IsNullOrWhiteSpace(EnterpriseSlug)
+        ? "demo"
+        : EnterpriseSlug.Trim().ToLowerInvariant();
+
+    private string EnterpriseName => currentEnterprise?.Name ?? "Enterprise";
 
     private MeetingDto? NextMeeting =>
         _meetings
@@ -255,19 +267,13 @@
         loadError = string.Empty;
         statusMessage = string.Empty;
 
-        var targetUserId = UserId != Guid.Empty ? UserId : SessionState.CurrentUser?.Id ?? Guid.Empty;
-        if (targetUserId == Guid.Empty)
-        {
-            Navigation.NavigateTo("/");
-            return;
-        }
-
+        currentUser = SessionState.CurrentUser;
         isLoading = true;
 
         try
         {
-            await LoadUserAsync(targetUserId);
-            await LoadMeetingsAsync(targetUserId);
+            await LoadEnterpriseAsync(CurrentEnterpriseSlug);
+            await LoadMeetingsAsync(CurrentEnterpriseSlug);
         }
         catch
         {
@@ -279,30 +285,21 @@
         }
     }
 
-    private async Task LoadUserAsync(Guid targetUserId)
+    private async Task LoadEnterpriseAsync(string enterpriseSlug)
     {
-        if (SessionState.CurrentUser?.Id == targetUserId)
-        {
-            currentUser = SessionState.CurrentUser;
-            return;
-        }
-
         var client = HttpClientFactory.CreateClient("Api");
-        currentUser = await client.GetFromJsonAsync<UserSummaryDto>($"/api/users/{targetUserId}");
-        if (currentUser is null)
+        var response = await client.PostAsJsonAsync($"/api/enterprises/{enterpriseSlug}/session", new { });
+        currentEnterprise = await response.Content.ReadFromJsonAsync<EnterpriseDto>();
+        if (currentEnterprise is null)
         {
-            loadError = "Usuario nao encontrado.";
-            Navigation.NavigateTo("/");
-            return;
+            loadError = "Enterprise nao encontrada.";
         }
-
-        SessionState.SetUser(currentUser);
     }
 
-    private async Task LoadMeetingsAsync(Guid targetUserId)
+    private async Task LoadMeetingsAsync(string enterpriseSlug)
     {
         var client = HttpClientFactory.CreateClient("Api");
-        var meetings = await client.GetFromJsonAsync<List<MeetingDto>>($"/api/users/{targetUserId}/meetings");
+        var meetings = await client.GetFromJsonAsync<List<MeetingDto>>($"/api/enterprises/{enterpriseSlug}/meetings");
         _meetings = meetings ?? [];
     }
 
@@ -363,7 +360,7 @@
     {
         if (currentUser is null)
         {
-            statusMessage = "Usuario nao carregado.";
+            statusMessage = "Entre ou crie uma conta para salvar reunioes nesta Enterprise.";
             return;
         }
 
@@ -393,9 +390,10 @@
                 string.IsNullOrWhiteSpace(newClientPhone) ? null : newClientPhone.Trim(),
                 string.IsNullOrWhiteSpace(newNotes) ? null : newNotes.Trim(),
                 "Confirmada",
-                "Dashboard");
+                "Dashboard",
+                currentUser.Id);
 
-            var response = await client.PostAsJsonAsync($"/api/users/{currentUser.Id}/meetings", request);
+            var response = await client.PostAsJsonAsync($"/api/enterprises/{CurrentEnterpriseSlug}/meetings", request);
             if (!response.IsSuccessStatusCode)
             {
                 statusMessage = "Nao foi possivel salvar a reuniao.";
@@ -406,7 +404,7 @@
             if (createdMeeting is null)
             {
                 statusMessage = "A reuniao foi criada, mas a resposta da API veio vazia.";
-                await LoadMeetingsAsync(currentUser.Id);
+                await LoadMeetingsAsync(CurrentEnterpriseSlug);
             }
             else
             {
@@ -434,13 +432,14 @@
     {
         if (currentUser is null)
         {
+            statusMessage = "Entre ou crie uma conta para remover reunioes.";
             return;
         }
 
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
-            var response = await client.DeleteAsync($"/api/users/{currentUser.Id}/meetings/{meetingId}");
+            var response = await client.DeleteAsync($"/api/enterprises/{CurrentEnterpriseSlug}/meetings/{meetingId}");
             if (!response.IsSuccessStatusCode)
             {
                 statusMessage = "Nao foi possivel remover a reuniao.";

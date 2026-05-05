@@ -7,26 +7,26 @@ using Microsoft.EntityFrameworkCore;
 namespace AgendAI.Api.Controllers;
 
 [ApiController]
-[Route("api/users/{userId:guid}/meetings")]
+[Route("api/enterprises/{enterpriseSlug}/meetings")]
 public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<MeetingResponse>>> GetMeetings(
-        Guid userId,
+        string enterpriseSlug,
         CancellationToken cancellationToken)
     {
-        var userExists = await dbContext.Users
+        var enterprise = await dbContext.Enterprises
             .AsNoTracking()
-            .AnyAsync(user => user.Id == userId, cancellationToken);
+            .SingleOrDefaultAsync(currentEnterprise => currentEnterprise.Slug == NormalizeSlug(enterpriseSlug), cancellationToken);
 
-        if (!userExists)
+        if (enterprise is null)
         {
-            return NotFound("Usuario nao encontrado.");
+            return NotFound("Enterprise nao encontrada.");
         }
 
         var meetings = await dbContext.Meetings
             .AsNoTracking()
-            .Where(meeting => meeting.UserId == userId)
+            .Where(meeting => meeting.EnterpriseId == enterprise.Id)
             .OrderBy(meeting => meeting.ScheduledDate)
             .ThenBy(meeting => meeting.StartTime)
             .Select(meeting => MapMeeting(meeting))
@@ -37,17 +37,16 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
 
     [HttpPost]
     public async Task<ActionResult<MeetingResponse>> CreateMeeting(
-        Guid userId,
+        string enterpriseSlug,
         [FromBody] CreateMeetingRequest request,
         CancellationToken cancellationToken)
     {
-        var userExists = await dbContext.Users
-            .AsNoTracking()
-            .AnyAsync(user => user.Id == userId, cancellationToken);
+        var enterprise = await dbContext.Enterprises
+            .SingleOrDefaultAsync(currentEnterprise => currentEnterprise.Slug == NormalizeSlug(enterpriseSlug), cancellationToken);
 
-        if (!userExists)
+        if (enterprise is null)
         {
-            return NotFound("Usuario nao encontrado.");
+            return NotFound("Enterprise nao encontrada.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.ClientName))
@@ -55,9 +54,22 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
             return ValidationProblem("Titulo e cliente sao obrigatorios.");
         }
 
+        if (request.CreatedByUserId is not null)
+        {
+            var userExists = await dbContext.Users
+                .AsNoTracking()
+                .AnyAsync(user => user.Id == request.CreatedByUserId, cancellationToken);
+
+            if (!userExists)
+            {
+                return ValidationProblem("Usuario criador nao encontrado.");
+            }
+        }
+
         var meeting = new Meeting
         {
-            UserId = userId,
+            EnterpriseId = enterprise.Id,
+            CreatedByUserId = request.CreatedByUserId,
             Title = request.Title.Trim(),
             ClientName = request.ClientName.Trim(),
             ScheduledDate = request.ScheduledDate,
@@ -74,14 +86,23 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
         dbContext.Meetings.Add(meeting);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetMeetings), new { userId }, MapMeeting(meeting));
+        return CreatedAtAction(nameof(GetMeetings), new { enterpriseSlug = enterprise.Slug }, MapMeeting(meeting));
     }
 
     [HttpDelete("{meetingId:guid}")]
-    public async Task<IActionResult> DeleteMeeting(Guid userId, Guid meetingId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteMeeting(string enterpriseSlug, Guid meetingId, CancellationToken cancellationToken)
     {
+        var enterprise = await dbContext.Enterprises
+            .AsNoTracking()
+            .SingleOrDefaultAsync(currentEnterprise => currentEnterprise.Slug == NormalizeSlug(enterpriseSlug), cancellationToken);
+
+        if (enterprise is null)
+        {
+            return NotFound("Enterprise nao encontrada.");
+        }
+
         var meeting = await dbContext.Meetings
-            .SingleOrDefaultAsync(currentMeeting => currentMeeting.Id == meetingId && currentMeeting.UserId == userId, cancellationToken);
+            .SingleOrDefaultAsync(currentMeeting => currentMeeting.Id == meetingId && currentMeeting.EnterpriseId == enterprise.Id, cancellationToken);
 
         if (meeting is null)
         {
@@ -97,7 +118,8 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
     private static MeetingResponse MapMeeting(Meeting meeting)
         => new(
             meeting.Id,
-            meeting.UserId,
+            meeting.EnterpriseId,
+            meeting.CreatedByUserId,
             meeting.Title,
             meeting.ClientName,
             meeting.ScheduledDate,
@@ -109,4 +131,14 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
             meeting.Notes,
             meeting.CreatedAtUtc,
             meeting.UpdatedAtUtc);
+
+    private static string NormalizeSlug(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        var chars = normalized
+            .Select(currentChar => char.IsLetterOrDigit(currentChar) ? currentChar : '-')
+            .ToArray();
+
+        return string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
 }

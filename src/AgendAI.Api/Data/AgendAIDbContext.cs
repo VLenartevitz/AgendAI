@@ -6,6 +6,7 @@ namespace AgendAI.Api.Data;
 public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<Enterprise> Enterprises => Set<Enterprise>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -22,11 +23,20 @@ public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options)
             entity.Property(user => user.WhatsAppNumber).HasMaxLength(32);
         });
 
+        modelBuilder.Entity<Enterprise>(entity =>
+        {
+            entity.ToTable("enterprises");
+            entity.HasKey(enterprise => enterprise.Id);
+            entity.HasIndex(enterprise => enterprise.Slug).IsUnique();
+            entity.Property(enterprise => enterprise.Name).HasMaxLength(120).IsRequired();
+            entity.Property(enterprise => enterprise.Slug).HasMaxLength(80).IsRequired();
+        });
+
         modelBuilder.Entity<Meeting>(entity =>
         {
             entity.ToTable("meetings");
             entity.HasKey(meeting => meeting.Id);
-            entity.HasIndex(meeting => new { meeting.UserId, meeting.ScheduledDate, meeting.StartTime });
+            entity.HasIndex(meeting => new { meeting.EnterpriseId, meeting.ScheduledDate, meeting.StartTime });
             entity.Property(meeting => meeting.Title).HasMaxLength(120).IsRequired();
             entity.Property(meeting => meeting.ClientName).HasMaxLength(120).IsRequired();
             entity.Property(meeting => meeting.ClientPhone).HasMaxLength(32);
@@ -34,10 +44,15 @@ public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options)
             entity.Property(meeting => meeting.SourceChannel).HasMaxLength(32).IsRequired();
             entity.Property(meeting => meeting.Notes).HasMaxLength(600);
 
-            entity.HasOne(meeting => meeting.User)
-                .WithMany(user => user.Meetings)
-                .HasForeignKey(meeting => meeting.UserId)
+            entity.HasOne(meeting => meeting.Enterprise)
+                .WithMany(enterprise => enterprise.Meetings)
+                .HasForeignKey(meeting => meeting.EnterpriseId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(meeting => meeting.CreatedByUser)
+                .WithMany(user => user.CreatedMeetings)
+                .HasForeignKey(meeting => meeting.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
