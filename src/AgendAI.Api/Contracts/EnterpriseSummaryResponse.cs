@@ -1,9 +1,11 @@
-namespace AgendAI.Web.Models;
+namespace AgendAI.Api.Contracts;
 
-public sealed record UserSummaryDto(
+public sealed record EnterpriseSummaryResponse(
     Guid Id,
-    string FullName,
+    string Name,
+    string Slug,
     string Email,
     string? WhatsAppNumber,
     DateTime CreatedAtUtc,
     DateTime LastAccessAtUtc);
+

@@ -1,6 +1,7 @@
 using AgendAI.Api.Contracts;
 using AgendAI.Api.Data;
 using AgendAI.Api.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,64 +9,106 @@ namespace AgendAI.Api.Controllers;
 
 [ApiController]
 [Route("api/enterprises")]
-public sealed class EnterprisesController(AgendAIDbContext dbContext) : ControllerBase
+public sealed class EnterprisesController(
+    AgendAIDbContext dbContext,
+    IPasswordHasher<Enterprise> passwordHasher) : ControllerBase
 {
-    [HttpGet("{enterpriseSlug}")]
-    public async Task<ActionResult<EnterpriseResponse>> GetBySlug(
-        string enterpriseSlug,
+    [HttpPost("register")]
+    public async Task<ActionResult<EnterpriseSummaryResponse>> Register(
+        [FromBody] RegisterEnterpriseRequest request,
         CancellationToken cancellationToken)
     {
-        var slug = NormalizeSlug(enterpriseSlug);
-        if (string.IsNullOrWhiteSpace(slug))
+        var email = request.Email.Trim().ToLowerInvariant();
+        var name = request.Name.Trim();
+        var slug = NormalizeSlug(name);
+
+        if (string.IsNullOrWhiteSpace(name) ||
+            string.IsNullOrWhiteSpace(slug) ||
+            string.IsNullOrWhiteSpace(email) ||
+            string.IsNullOrWhiteSpace(request.Password))
         {
-            return ValidationProblem("Enterprise invalida.");
+            return ValidationProblem("Nome, email e senha são obrigatórios.");
         }
 
-        var enterprise = await dbContext.Enterprises
-            .AsNoTracking()
-            .SingleOrDefaultAsync(currentEnterprise => currentEnterprise.Slug == slug, cancellationToken);
+        var emailExists = await dbContext.Enterprises
+            .AnyAsync(e => e.Email == email, cancellationToken);
 
-        return enterprise is null ? NotFound() : Ok(MapEnterprise(enterprise));
-    }
-
-    [HttpPost("{enterpriseSlug}/session")]
-    public async Task<ActionResult<EnterpriseResponse>> EnsureSessionEnterprise(
-        string enterpriseSlug,
-        CancellationToken cancellationToken)
-    {
-        var slug = NormalizeSlug(enterpriseSlug);
-        if (string.IsNullOrWhiteSpace(slug))
+        if (emailExists)
         {
-            return ValidationProblem("Enterprise invalida.");
+            return Conflict("Já existe uma empresa com esse email.");
         }
 
-        var enterprise = await dbContext.Enterprises
-            .SingleOrDefaultAsync(currentEnterprise => currentEnterprise.Slug == slug, cancellationToken);
+        var slugExists = await dbContext.Enterprises
+            .AnyAsync(e => e.Slug == slug, cancellationToken);
 
-        if (enterprise is not null)
+        if (slugExists)
         {
-            return Ok(MapEnterprise(enterprise));
+            return Conflict("Já existe uma empresa com esse nome.");
         }
 
-        enterprise = new Enterprise
+        var enterprise = new Enterprise
         {
-            Name = BuildNameFromSlug(slug),
+            Name = name,
             Slug = slug,
-            CreatedAtUtc = DateTime.UtcNow
+            Email = email,
+            WhatsAppNumber = request.WhatsAppNumber?.Trim(),
+            CreatedAtUtc = DateTime.UtcNow,
+            LastAccessAtUtc = DateTime.UtcNow
         };
+
+        enterprise.PasswordHash = passwordHasher.HashPassword(enterprise, request.Password);
 
         dbContext.Enterprises.Add(enterprise);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetBySlug), new { enterpriseSlug = enterprise.Slug }, MapEnterprise(enterprise));
-    }
-
-    private static EnterpriseResponse MapEnterprise(Enterprise enterprise)
-        => new(
+        return Ok(new EnterpriseSummaryResponse(
             enterprise.Id,
             enterprise.Name,
             enterprise.Slug,
-            enterprise.CreatedAtUtc);
+            enterprise.Email ?? string.Empty,
+            enterprise.WhatsAppNumber,
+            enterprise.CreatedAtUtc,
+            enterprise.LastAccessAtUtc));
+    }
+
+    [HttpPost("login")]
+    public async Task<ActionResult<EnterpriseSummaryResponse>> Login(
+        [FromBody] LoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return ValidationProblem("Email e senha são obrigatórios.");
+        }
+
+        var enterprise = await dbContext.Enterprises
+            .SingleOrDefaultAsync(e => e.Email == email, cancellationToken);
+
+        if (enterprise is null)
+        {
+            return Unauthorized("Credenciais inválidas.");
+        }
+
+        var result = passwordHasher.VerifyHashedPassword(enterprise, enterprise.PasswordHash, request.Password);
+        if (result == PasswordVerificationResult.Failed)
+        {
+            return Unauthorized("Credenciais inválidas.");
+        }
+
+        enterprise.LastAccessAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new EnterpriseSummaryResponse(
+            enterprise.Id,
+            enterprise.Name,
+            enterprise.Slug,
+            enterprise.Email ?? string.Empty,
+            enterprise.WhatsAppNumber,
+            enterprise.CreatedAtUtc,
+            enterprise.LastAccessAtUtc));
+    }
 
     private static string NormalizeSlug(string value)
     {
@@ -76,8 +119,5 @@ public sealed class EnterprisesController(AgendAIDbContext dbContext) : Controll
 
         return string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
     }
-
-    private static string BuildNameFromSlug(string slug)
-        => string.Join(' ', slug.Split('-', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
 }
+

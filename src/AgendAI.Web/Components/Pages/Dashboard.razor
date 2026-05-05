@@ -32,8 +32,8 @@
     <section class="dashboard-stats">
         <article class="stat-card">
             <p>Usuario ativo</p>
-            <h3>@(currentUser?.FullName ?? "Visitante")</h3>
-            <span>@(currentUser?.Email ?? "Acesse pela tela inicial para criar ou remover reunioes")</span>
+            <h3>@(currentPrincipal?.DisplayName ?? "Visitante")</h3>
+            <span>@(currentPrincipal?.Email ?? "Acesse pela tela inicial para criar ou remover reunioes")</span>
         </article>
         <article class="stat-card">
             <p>Enterprise</p>
@@ -201,8 +201,7 @@
     private DateTime _selectedDate = DateTime.Today;
     private List<MeetingDto> _meetings = [];
 
-    private UserSummaryDto? currentUser;
-    private EnterpriseDto? currentEnterprise;
+    private SessionPrincipalDto? currentPrincipal;
     private string newTitle = string.Empty;
     private string newClient = string.Empty;
     private string newClientPhone = string.Empty;
@@ -242,13 +241,13 @@
         $"{StartOfWeek(DateTime.Today).ToString("dd MMM", _culture)} - {EndOfWeek(DateTime.Today).ToString("dd MMM", _culture)}";
 
     private string HeroEyebrow =>
-        currentUser is null ? "AgendAI" : $"{EnterpriseName} | {currentUser.FullName}";
+        currentPrincipal is null ? "AgendAI" : $"{EnterpriseName} | {currentPrincipal.DisplayName}";
 
     private string CurrentEnterpriseSlug => string.IsNullOrWhiteSpace(EnterpriseSlug)
         ? "demo"
         : EnterpriseSlug.Trim().ToLowerInvariant();
 
-    private string EnterpriseName => currentEnterprise?.Name ?? "Enterprise";
+    private string EnterpriseName => CurrentEnterpriseSlug;
 
     private MeetingDto? NextMeeting =>
         _meetings
@@ -267,12 +266,11 @@
         loadError = string.Empty;
         statusMessage = string.Empty;
 
-        currentUser = SessionState.CurrentUser;
+        currentPrincipal = SessionState.CurrentPrincipal;
         isLoading = true;
 
         try
         {
-            await LoadEnterpriseAsync(CurrentEnterpriseSlug);
             await LoadMeetingsAsync(CurrentEnterpriseSlug);
         }
         catch
@@ -282,17 +280,6 @@
         finally
         {
             isLoading = false;
-        }
-    }
-
-    private async Task LoadEnterpriseAsync(string enterpriseSlug)
-    {
-        var client = HttpClientFactory.CreateClient("Api");
-        var response = await client.PostAsJsonAsync($"/api/enterprises/{enterpriseSlug}/session", new { });
-        currentEnterprise = await response.Content.ReadFromJsonAsync<EnterpriseDto>();
-        if (currentEnterprise is null)
-        {
-            loadError = "Enterprise nao encontrada.";
         }
     }
 
@@ -358,7 +345,7 @@
 
     private async Task AddMeetingAsync()
     {
-        if (currentUser is null)
+        if (currentPrincipal is null)
         {
             statusMessage = "Entre ou crie uma conta para salvar reunioes nesta Enterprise.";
             return;
@@ -391,7 +378,7 @@
                 string.IsNullOrWhiteSpace(newNotes) ? null : newNotes.Trim(),
                 "Confirmada",
                 "Dashboard",
-                currentUser.Id);
+                currentPrincipal.Id);
 
             var response = await client.PostAsJsonAsync($"/api/enterprises/{CurrentEnterpriseSlug}/meetings", request);
             if (!response.IsSuccessStatusCode)
@@ -430,7 +417,7 @@
 
     private async Task RemoveMeetingAsync(Guid meetingId)
     {
-        if (currentUser is null)
+        if (currentPrincipal is null)
         {
             statusMessage = "Entre ou crie uma conta para remover reunioes.";
             return;

@@ -4,15 +4,12 @@ namespace AgendAI.Web.Services;
 
 public sealed class UserSessionState
 {
-    public UserSummaryDto? CurrentUser { get; private set; }
+    public SessionPrincipalDto? CurrentPrincipal { get; private set; }
 
-    public void SetUser(UserSummaryDto user)
-    {
-        CurrentUser = user;
-    }
+    public void SetPrincipal(SessionPrincipalDto principal) => CurrentPrincipal = principal;
 
     public void Clear()
     {
-        CurrentUser = null;
+        CurrentPrincipal = null;
     }
 }

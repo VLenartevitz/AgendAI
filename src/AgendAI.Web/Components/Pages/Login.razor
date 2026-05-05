@@ -32,9 +32,69 @@
             <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
             <input @bind="email" type="email" placeholder="E-mail" />
             <input @bind="password" type="password" placeholder="Senha" />
-            <button type="submit" disabled="@isSubmitting">@(isSubmitting ? "Entrando..." : "Entrar ou criar conta")</button>
+
+            <div class="account-type-group" aria-label="Tipo de conta">
+                <InputRadioGroup @bind-Value="accountType">
+                    <label class="account-type-option @(accountType == "User" ? "active" : "")">
+                        <InputRadio Value="@("User")" />
+                        <span class="account-type-dot"></span>
+                        <span>
+                            <strong>Usuario</strong>
+                            <small>Agenda pessoal e marcar horario em empresas</small>
+                        </span>
+                    </label>
+
+                    <label class="account-type-option @(accountType == "Enterprise" ? "active" : "")">
+                        <InputRadio Value="@("Enterprise")" />
+                        <span class="account-type-dot"></span>
+                        <span>
+                            <strong>Empresa</strong>
+                            <small>Agenda da Equipe e dos Clientes agendados</small>
+                        </span>
+                    </label>
+                </InputRadioGroup>
+            </div>
+
+            <button type="submit" disabled="@isSubmitting">@(isSubmitting ? "Entrando..." : "Fazer login")</button>
+
+            <button @onclick='() => Navigation.NavigateTo("/register")' disabled="@isSubmitting">
+                Não possui conta?  Registre-se
+            </button>
+
         </form>
 
+@* <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
+
+    <input @bind="fullName" type="text" placeholder="Seu nome" />
+    <input @bind="email" type="email" placeholder="E-mail" />
+    <input @bind="password" type="password" placeholder="Senha" />
+
+    <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
+
+    @if (accountType == "Enterprise")
+    {
+        <input @bind="businessName" type="text" placeholder="Nome do negócio" />
+    }
+
+    <div class="account-type-group">
+        <InputRadioGroup @bind-Value="accountType">
+            <label class="account-type-option @(accountType == "User" ? "active" : "")">
+                <InputRadio Value="@("User")" />
+                Usuário
+            </label>
+
+            <label class="account-type-option @(accountType == "Enterprise" ? "active" : "")">
+                <InputRadio Value="@("Enterprise")" />
+                Empresa
+            </label>
+        </InputRadioGroup>
+    </div>
+
+    <button type="submit" disabled="@isSubmitting">
+        @(isSubmitting ? "Entrando..." : "Entrar ou criar conta")
+    </button>
+
+</form> *@
         @if (!string.IsNullOrWhiteSpace(statusMessage))
         {
             <p class="api-message">@statusMessage</p>
@@ -43,10 +103,7 @@
 </main>
 
 @code {
-    [Parameter]
-    public string? EnterpriseSlug { get; set; }
-
-    private EnterpriseDto? currentEnterprise;
+    private string accountType = "User";
     private string fullName = string.Empty;
     private string businessName = string.Empty;
     private string whatsAppNumber = string.Empty;
@@ -56,21 +113,13 @@
     private string statusMessage = string.Empty;
     private bool isSubmitting;
 
-    private string CurrentEnterpriseSlug => string.IsNullOrWhiteSpace(EnterpriseSlug)
-        ? "demo"
-        : EnterpriseSlug.Trim().ToLowerInvariant();
-
-    private string EnterpriseTitle => currentEnterprise is null
-        ? "Dashboard da Enterprise"
-        : $"Dashboard da {currentEnterprise.Name}";
+    private string EnterpriseTitle => "Dashboard da Enterprise";
 
     protected override async Task OnParametersSetAsync()
     {
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
-            var enterpriseResponse = await client.PostAsJsonAsync($"/api/enterprises/{CurrentEnterpriseSlug}/session", new { });
-            currentEnterprise = await enterpriseResponse.Content.ReadFromJsonAsync<EnterpriseDto>();
             apiMessage = await client.GetStringAsync("/api/info/message");
         }
         catch
@@ -81,6 +130,12 @@
 
     private async Task GoToDashboardAsync()
     {
+        if (accountType == "Enterprise" && string.IsNullOrWhiteSpace(businessName))
+        {
+            statusMessage = "Informe o nome do negocio para continuar.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             statusMessage = "Informe e-mail e senha para continuar.";
@@ -93,31 +148,60 @@
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
-            var request = new UserSessionRequest(
-                fullName,
-                email,
-                password,
-                businessName,
-                whatsAppNumber);
 
-            var response = await client.PostAsJsonAsync("/api/users/session", request);
-            if (!response.IsSuccessStatusCode)
+            if (accountType == "Enterprise")
             {
-                statusMessage = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                var request = new LoginRequest(email.Trim(), password);
+                var response = await client.PostAsJsonAsync("/api/enterprises/login", request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    statusMessage = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "Senha incorreta para este e-mail."
+                        : "Nao foi possivel iniciar a sessao agora.";
+                    return;
+                }
+
+                var enterprise = await response.Content.ReadFromJsonAsync<EnterpriseSummaryApiDto>();
+                if (enterprise is null)
+                {
+                    statusMessage = "Resposta inesperada da API.";
+                    return;
+                }
+
+                SessionState.SetPrincipal(new SessionPrincipalDto(
+                    enterprise.Id,
+                    "Enterprise",
+                    enterprise.Name,
+                    enterprise.Email));
+
+                Navigation.NavigateTo($"/e/{enterprise.Slug}");
+                return;
+            }
+
+            var userRequest = new LoginRequest(email.Trim(), password);
+            var userResponse = await client.PostAsJsonAsync("/api/users/login", userRequest);
+            if (!userResponse.IsSuccessStatusCode)
+            {
+                statusMessage = userResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized
                     ? "Senha incorreta para este e-mail."
                     : "Nao foi possivel iniciar a sessao agora.";
                 return;
             }
 
-            var user = await response.Content.ReadFromJsonAsync<UserSummaryDto>();
+            var user = await userResponse.Content.ReadFromJsonAsync<UserSummaryApiDto>();
             if (user is null)
             {
                 statusMessage = "Resposta inesperada da API.";
                 return;
             }
 
-            SessionState.SetUser(user);
-            Navigation.NavigateTo($"/e/{CurrentEnterpriseSlug}");
+            SessionState.SetPrincipal(new SessionPrincipalDto(
+                user.Id,
+                "User",
+                user.FullName,
+                user.Email));
+
+            Navigation.NavigateTo("/e/demo");
         }
         catch
         {

@@ -1,7 +1,8 @@
 namespace AgendAI.Api.Contracts;
 
-public sealed record UserSessionRequest(
-    string FullName,
+public sealed record RegisterEnterpriseRequest(
+    string Name,
     string Email,
     string Password,
     string? WhatsAppNumber);
+

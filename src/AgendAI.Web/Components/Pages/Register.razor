@@ -1,0 +1,192 @@
+@page "/register"
+
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject UserSessionState SessionState
+
+<PageTitle>Register</PageTitle>
+
+<main class="login-shell">
+    <section class="login-brand-panel">
+        <div class="login-brand-copy">
+            <span class="eyebrow">Plataforma AgendAI</span>
+            <h1>@EnterpriseTitle</h1>
+            <p>
+                Acesse o painel desta Enterprise para acompanhar reunioes, clientes e proximos atendimentos em tempo
+                real.
+            </p>
+        </div>
+
+        <div class="logo-showcase">
+            <img class="logo-showcase-image" src="/images/logoAgendAIWhite.jpeg" alt="Logo AgendAI" />
+        </div>
+    </section>
+
+    <section class="login-page">
+        <img class="login-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
+        <h2>Acessar dashboard</h2>
+        @* <p class="api-message">@apiMessage</p> *@
+
+        <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
+            @if (accountType == "User")
+            {
+                <input @bind="fullName" type="text" placeholder="Seu nome" />
+            }
+            else if (accountType == "Enterprise")
+            {
+                <input @bind="businessName" type="text" placeholder="Nome do negócio" />
+            }
+
+            <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
+            <input @bind="email" type="email" placeholder="E-mail" />
+            <input @bind="password" type="password" placeholder="Senha" />
+
+            <div class="account-type-group" aria-label="Tipo de conta">
+                <InputRadioGroup @bind-Value="accountType">
+                    <label class="account-type-option @(accountType == "User" ? "active" : "")">
+                        <InputRadio Value="@("User")" />
+                        <span class="account-type-dot"></span>
+                        <span>
+                            <strong>Usuario</strong>
+                            <small>Agenda pessoal e marcar horario em empresas</small>
+                        </span>
+                    </label>
+
+                    <label class="account-type-option @(accountType == "Enterprise" ? "active" : "")">
+                        <InputRadio Value="@("Enterprise")" />
+                        <span class="account-type-dot"></span>
+                        <span>
+                            <strong>Empresa</strong>
+                            <small>Agenda da Equipe e dos Clientes agendados</small>
+                        </span>
+                    </label>
+                </InputRadioGroup>
+            </div>
+
+            <button type="submit" disabled="@isSubmitting">@(isSubmitting ? "Criando conta..." : "Criar Conta")</button>
+
+            <button @onclick='() => Navigation.NavigateTo("/")' disabled="@isSubmitting">
+                Ja possui conta? Faça login
+            </button>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="api-message">@statusMessage</p>
+        }
+    </section>
+</main>
+
+@code {
+    private string accountType = "User";
+    private string fullName = string.Empty;
+    private string businessName = string.Empty;
+    private string whatsAppNumber = string.Empty;
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string statusMessage = string.Empty;
+    private bool isSubmitting;
+
+    private string EnterpriseTitle => "Dashboard da Enterprise";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Task.CompletedTask;
+    }
+
+    private async Task GoToDashboardAsync()
+{
+    if (accountType == "User" && string.IsNullOrWhiteSpace(fullName))
+    {
+        statusMessage = "Informe seu nome.";
+        return;
+    }
+
+    if (accountType == "Enterprise" && string.IsNullOrWhiteSpace(businessName))
+    {
+        statusMessage = "Informe o nome do negocio.";
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+    {
+        statusMessage = "Informe e-mail e senha.";
+        return;
+    }
+
+    isSubmitting = true;
+    statusMessage = string.Empty;
+
+    try
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+
+        if (accountType == "Enterprise")
+        {
+            var enterpriseRequest = new
+            {
+                Name = businessName,
+                Email = email,
+                Password = password,
+                WhatsAppNumber = whatsAppNumber
+            };
+
+            var enterpriseResponse = await client.PostAsJsonAsync("/api/enterprises/register", enterpriseRequest);
+            if (!enterpriseResponse.IsSuccessStatusCode)
+            {
+                statusMessage = "Erro ao criar empresa.";
+                return;
+            }
+
+            var enterprise = await enterpriseResponse.Content.ReadFromJsonAsync<EnterpriseSummaryApiDto>();
+            if (enterprise is null)
+            {
+                statusMessage = "Resposta inesperada da API.";
+                return;
+            }
+
+            SessionState.SetPrincipal(new SessionPrincipalDto(
+                enterprise.Id,
+                "Enterprise",
+                enterprise.Name,
+                enterprise.Email));
+
+            Navigation.NavigateTo($"/e/{enterprise.Slug}");
+            return;
+        }
+
+        var request = new
+        {
+            FullName = fullName,
+            Email = email,
+            Password = password,
+            WhatsAppNumber = whatsAppNumber
+        };
+
+        var response = await client.PostAsJsonAsync("/api/users/register", request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            statusMessage = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                ? "Já existe uma conta com esse e-mail."
+                : "Erro ao criar conta.";
+            return;
+        }
+
+        statusMessage = "Conta criada com sucesso! Redirecionando...";
+
+        await Task.Delay(1000);
+        Navigation.NavigateTo("/");
+    }
+    catch
+    {
+        statusMessage = "Erro ao conectar com a API.";
+    }
+    finally
+    {
+        isSubmitting = false;
+    }
+}
+
+}
