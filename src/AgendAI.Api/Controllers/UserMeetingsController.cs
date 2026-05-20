@@ -13,7 +13,7 @@ public sealed class UserMeetingsController(AgendAIDbContext dbContext) : Control
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<MeetingResponse>>> GetMyMeetings(CancellationToken cancellationToken)
     {
-        var session = await SessionAuth.GetSessionAsync(dbContext, Request, cancellationToken);
+        var session = await SessionAuth.GetSessionAsync(dbContext, HttpContext, cancellationToken);
         if (session is null || session.PrincipalType != "User" || session.UserId is null)
         {
             return Forbid();

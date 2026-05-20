@@ -25,7 +25,7 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
             return NotFound("Enterprise nao encontrada.");
         }
 
-        var session = await SessionAuth.GetSessionAsync(dbContext, Request, cancellationToken);
+        var session = await SessionAuth.GetSessionAsync(dbContext, HttpContext, cancellationToken);
         if (session is null || session.PrincipalType != "Enterprise" || session.EnterpriseId != enterprise.Id)
         {
             return Forbid();
@@ -106,7 +106,7 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
         string status;
         string sourceChannel;
 
-        var session = await SessionAuth.GetSessionAsync(dbContext, Request, cancellationToken);
+        var session = await SessionAuth.GetSessionAsync(dbContext, HttpContext, cancellationToken);
         if (session is not null && session.PrincipalType == "Enterprise" && session.EnterpriseId == enterprise.Id)
         {
             status = "Confirmada";
@@ -190,7 +190,7 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
             return NotFound("Enterprise nao encontrada.");
         }
 
-        var session = await SessionAuth.GetSessionAsync(dbContext, Request, cancellationToken);
+        var session = await SessionAuth.GetSessionAsync(dbContext, HttpContext, cancellationToken);
         if (session is null || session.PrincipalType != "Enterprise" || session.EnterpriseId != enterprise.Id)
         {
             return Forbid();
@@ -226,7 +226,7 @@ public sealed class MeetingsController(AgendAIDbContext dbContext) : ControllerB
             return NotFound("Enterprise nao encontrada.");
         }
 
-        var session = await SessionAuth.GetSessionAsync(dbContext, Request, cancellationToken);
+        var session = await SessionAuth.GetSessionAsync(dbContext, HttpContext, cancellationToken);
         if (session is null || session.PrincipalType != "Enterprise" || session.EnterpriseId != enterprise.Id)
         {
             return Forbid();

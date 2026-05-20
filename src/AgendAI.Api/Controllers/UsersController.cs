@@ -2,9 +2,12 @@ using AgendAI.Api.Contracts;
 using AgendAI.Api.Data;
 using AgendAI.Api.Infrastructure;
 using AgendAI.Api.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace AgendAI.Api.Controllers;
 
@@ -98,6 +101,27 @@ public sealed class UsersController(
 
         dbContext.Sessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.FullName),
+            new(ClaimTypes.Email, user.Email),
+            new("PrincipalType", "User"),
+            new(SessionAuth.SessionTokenClaim, session.Token.ToString())
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            claimsPrincipal,
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = session.ExpiresAtUtc
+            });
 
         var principal = new UserSummaryResponse(
             user.Id,
