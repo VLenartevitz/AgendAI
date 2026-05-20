@@ -1,16 +1,8 @@
 @inherits LayoutComponentBase
+@inject UserSessionState SessionState
+@inject NavigationManager Navigation
 
 <div class="app-layout">
-    <header class="app-topbar">
-        <a class="brand-link" href="/">
-            <img class="brand-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
-        </a>
-        <div class="topbar-copy">
-            <span class="topbar-title">AgendAI</span>
-            <span class="topbar-subtitle">Agenda inteligente para atendimento com IA</span>
-        </div>
-    </header>
-
     <div class="app-body">
         @Body
     </div>
@@ -21,3 +13,11 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">x</span>
 </div>
+
+@code {
+    private void Logout()
+    {
+        SessionState.Clear();
+        Navigation.NavigateTo("/login");
+    }
+}

@@ -12,6 +12,8 @@ public sealed record MeetingDto(
     string Status,
     string SourceChannel,
     string? ClientPhone,
+    string? ClientEmail,
+    string? ClientCpf,
     string? Notes,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);

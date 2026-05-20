@@ -7,6 +7,8 @@ public sealed record CreateMeetingRequest(
     TimeOnly StartTime,
     int DurationMinutes,
     string? ClientPhone,
+    string? ClientEmail,
+    string? ClientCpf,
     string? Notes,
     string? Status,
     string? SourceChannel,

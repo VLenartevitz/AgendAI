@@ -8,6 +8,7 @@ public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options)
     public DbSet<User> Users => Set<User>();
     public DbSet<Enterprise> Enterprises => Set<Enterprise>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
+    public DbSet<Session> Sessions => Set<Session>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +66,8 @@ public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options)
             entity.Property(meeting => meeting.Title).HasMaxLength(120).IsRequired();
             entity.Property(meeting => meeting.ClientName).HasMaxLength(120).IsRequired();
             entity.Property(meeting => meeting.ClientPhone).HasMaxLength(32);
+            entity.Property(meeting => meeting.ClientEmail).HasMaxLength(160);
+            entity.Property(meeting => meeting.ClientCpf).HasMaxLength(32);
             entity.Property(meeting => meeting.Status).HasMaxLength(32).IsRequired();
             entity.Property(meeting => meeting.SourceChannel).HasMaxLength(32).IsRequired();
             entity.Property(meeting => meeting.Notes).HasMaxLength(600);
@@ -73,6 +76,18 @@ public sealed class AgendAIDbContext(DbContextOptions<AgendAIDbContext> options)
                 .WithMany(enterprise => enterprise.Meetings)
                 .HasForeignKey(meeting => meeting.EnterpriseId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Session>(entity =>
+        {
+            entity.ToTable("sessions");
+            entity.HasKey(session => session.Id);
+            entity.HasIndex(session => session.Token).IsUnique();
+            entity.HasIndex(session => new { session.PrincipalType, session.UserId });
+            entity.HasIndex(session => new { session.PrincipalType, session.EnterpriseId });
+            entity.Property(session => session.PrincipalType).HasMaxLength(32).IsRequired();
+            entity.Property(session => session.CreatedAtUtc).IsRequired();
+            entity.Property(session => session.ExpiresAtUtc).IsRequired();
         });
     }
 }

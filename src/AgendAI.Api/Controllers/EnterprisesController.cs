@@ -1,5 +1,6 @@
 using AgendAI.Api.Contracts;
 using AgendAI.Api.Data;
+using AgendAI.Api.Infrastructure;
 using AgendAI.Api.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -72,7 +73,7 @@ public sealed class EnterprisesController(
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<EnterpriseSummaryResponse>> Login(
+    public async Task<ActionResult<LoginResponse<EnterpriseSummaryResponse>>> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
@@ -98,16 +99,29 @@ public sealed class EnterprisesController(
         }
 
         enterprise.LastAccessAtUtc = DateTime.UtcNow;
+
+        var session = new Session
+        {
+            PrincipalType = "Enterprise",
+            EnterpriseId = enterprise.Id,
+            UserId = null,
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(30)
+        };
+
+        dbContext.Sessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(new EnterpriseSummaryResponse(
+        var principal = new EnterpriseSummaryResponse(
             enterprise.Id,
             enterprise.Name,
             enterprise.Slug,
             enterprise.Email ?? string.Empty,
             enterprise.WhatsAppNumber,
             enterprise.CreatedAtUtc,
-            enterprise.LastAccessAtUtc));
+            enterprise.LastAccessAtUtc);
+
+        return Ok(new LoginResponse<EnterpriseSummaryResponse>(principal, session.Token.ToString()));
     }
 
     private static string NormalizeSlug(string value)
@@ -120,4 +134,3 @@ public sealed class EnterprisesController(
         return string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
     }
 }
-

@@ -82,6 +82,47 @@ h1:focus {
     color: var(--muted);
 }
 
+.topbar-spacer {
+    flex: 1;
+}
+
+.topbar-session {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(79, 179, 201, 0.2);
+    box-shadow: 0 10px 24px rgba(24, 41, 59, 0.08);
+}
+
+.topbar-session-name {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--ink);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.topbar-logout {
+    border: none;
+    background: rgba(24, 41, 59, 0.06);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.topbar-logout:hover {
+    background: rgba(24, 41, 59, 0.1);
+}
+
 .app-body {
     padding: 0 0 32px;
 }

@@ -24,7 +24,6 @@
     <section class="login-page">
         <img class="login-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
         <h2>Acessar dashboard</h2>
-        <p class="api-message">@apiMessage</p>
 
         <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
 
@@ -89,7 +88,6 @@
     private string accountType = "User";
     private string email = string.Empty;
     private string password = string.Empty;
-    private string apiMessage = "Carregando mensagem da API...";
     private string statusMessage = string.Empty;
     private bool isSubmitting;
     private string HeroTitle =>
@@ -102,19 +100,7 @@
             ? "Gerencie reunioes, clientes e atendimentos da sua equipe em tempo real."
             : "Organize seus compromissos, acompanhe horarios e agende reunioes com empresas.";
 
-    protected override async Task OnParametersSetAsync()
-    {
-        try
-        {
-            var client = HttpClientFactory.CreateClient("Api");
-            apiMessage = await client.GetStringAsync("/api/info/message");
-        }
-        catch
-        {
-            apiMessage = "Conexao com a API indisponivel no momento.";
-        }
-    }
-
+    
     private async Task GoToDashboardAsync()
     {
 
@@ -139,24 +125,25 @@
                 {
                     statusMessage = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
                         ? "Senha incorreta para este e-mail."
-                        : "Nao foi possivel iniciar a sessao agora.";
+                        : "Não foi possivel iniciar a sessao agora.";
                     return;
                 }
 
-                var enterprise = await response.Content.ReadFromJsonAsync<EnterpriseSummaryApiDto>();
-                if (enterprise is null)
+                var login = await response.Content.ReadFromJsonAsync<LoginApiResponse<EnterpriseSummaryApiDto>>();
+                if (login?.Principal is null || string.IsNullOrWhiteSpace(login.SessionToken))
                 {
                     statusMessage = "Resposta inesperada da API.";
                     return;
                 }
 
                 SessionState.SetPrincipal(new SessionPrincipalDto(
-                    enterprise.Id,
+                    login.Principal.Id,
                     "Enterprise",
-                    enterprise.Name,
-                    enterprise.Email));
+                    login.Principal.Name,
+                    login.Principal.Email,
+                    login.Principal.Slug), login.SessionToken);
 
-                Navigation.NavigateTo($"/e/{enterprise.Slug}");
+                Navigation.NavigateTo($"/e/{login.Principal.Slug}/dashboard");
                 return;
             }
 
@@ -166,22 +153,22 @@
             {
                 statusMessage = userResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized
                     ? "Senha incorreta para este e-mail."
-                    : "Nao foi possivel iniciar a sessao agora.";
+                    : "Não foi possivel iniciar a sessao agora.";
                 return;
             }
 
-            var user = await userResponse.Content.ReadFromJsonAsync<UserSummaryApiDto>();
-            if (user is null)
+            var userLogin = await userResponse.Content.ReadFromJsonAsync<LoginApiResponse<UserSummaryApiDto>>();
+            if (userLogin?.Principal is null || string.IsNullOrWhiteSpace(userLogin.SessionToken))
             {
                 statusMessage = "Resposta inesperada da API.";
                 return;
             }
 
             SessionState.SetPrincipal(new SessionPrincipalDto(
-                user.Id,
+                userLogin.Principal.Id,
                 "User",
-                user.FullName,
-                user.Email));
+                userLogin.Principal.FullName,
+                userLogin.Principal.Email), userLogin.SessionToken);
 
             Navigation.NavigateTo("/my-dashboard");
             return;

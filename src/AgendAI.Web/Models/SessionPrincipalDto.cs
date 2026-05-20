@@ -4,5 +4,5 @@ public sealed record SessionPrincipalDto(
     Guid Id,
     string AccountType,
     string DisplayName,
-    string Email);
-
+    string Email,
+    string? Slug = null);

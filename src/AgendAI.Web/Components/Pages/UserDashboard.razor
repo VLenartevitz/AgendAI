@@ -361,16 +361,21 @@
     private async Task LoadMeetingsAsync()
     {
         var client = HttpClientFactory.CreateClient("Api");
+        client.AttachSession(SessionState);
 
         var meetings =
             await client.GetFromJsonAsync<List<MeetingDto>>(
-                $"/api/users/{currentPrincipal!.Id}/meetings");
+                "/api/users/me/meetings");
 
         _meetings = meetings ?? [];
     }
 
     private async Task AddMeetingAsync()
     {
+        statusMessage = "Para criar reunioes, acesse a pagina da enterprise.";
+        await Task.CompletedTask;
+        return;
+
         if (string.IsNullOrWhiteSpace(newTitle))
         {
             statusMessage = "Informe um assunto.";
@@ -395,6 +400,8 @@
                 DateOnly.FromDateTime(_selectedDate),
                 startTime,
                 Math.Max(15, newDuration),
+                null,
+                null,
                 null,
                 string.IsNullOrWhiteSpace(newNotes)
                     ? null
@@ -439,6 +446,10 @@
 
     private async Task RemoveMeetingAsync(Guid meetingId)
     {
+        statusMessage = "Cancelamento pelo usuario ainda nao implementado.";
+        await Task.CompletedTask;
+        return;
+
         try
         {
             var client = HttpClientFactory.CreateClient("Api");

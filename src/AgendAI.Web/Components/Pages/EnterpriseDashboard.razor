@@ -5,7 +5,7 @@
 @inject NavigationManager Navigation
 @inject UserSessionState SessionState
 
-<PageTitle>Dashboard</PageTitle>
+<PageTitle>@(IsDashboardRoute ? "Dashboard" : "Agenda pública")</PageTitle>
 
 <main class="dashboard-shell">
     @if (!string.IsNullOrWhiteSpace(loadError))
@@ -17,47 +17,80 @@
         <div>
             <img class="hero-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
             <span class="eyebrow">@HeroEyebrow</span>
-            <h1>Reunioes da @EnterpriseName</h1>
+            <h1>@HeroTitle</h1>
             <p class="subtitle">
-                Acompanhe os compromissos ligados a esta Enterprise e mantenha o fluxo de atendimento salvo no banco em tempo real.
+                @HeroDescription
             </p>
         </div>
         <div class="hero-actions">
-            <button class="button ghost" type="button" @onclick="GoToToday">Ir para hoje</button>
-            <button class="button primary" type="button" @onclick="PrepareQuickAdd">Nova reuniao</button>
+            @if (IsDashboardRoute)
+            {
+                <button class="button ghost" type="button" @onclick="GoToPublicPage">Ver página pública</button>
+            }
+            else if (IsEnterpriseOwner)
+            {
+                <button class="button ghost" type="button" @onclick="GoToDashboardPage">Ir para o dashboard</button>
+            }
+
+            <button class="button primary" type="button" @onclick="PrepareQuickAdd">
+                @(IsEnterpriseOwner && IsDashboardRoute ? "Nova reunião" : "Solicitar reunião")
+            </button>
         </div>
     </header>
 
-    <section class="dashboard-stats">
-        <article class="stat-card">
-            <p>Usuario ativo</p>
-            <h3>@(currentPrincipal?.DisplayName ?? "Visitante")</h3>
-            <span>@(currentPrincipal?.Email ?? "Acesse pela tela inicial para criar ou remover reunioes")</span>
-        </article>
-        <article class="stat-card">
-            <p>Enterprise</p>
-            <h3>@EnterpriseName</h3>
-            <span>@EnterpriseSlug</span>
-        </article>
-        <article class="stat-card">
-            <p>Reunioes hoje</p>
-            <h3>@TotalMeetingsToday</h3>
-            <span>@TodayRangeLabel</span>
-        </article>
-        <article class="stat-card">
-            <p>Semana atual</p>
-            <h3>@TotalMeetingsWeek</h3>
-            <span>@WeekRangeLabel</span>
-        </article>
-        <article class="stat-card">
-            <p>Proxima reuniao</p>
-            <h3>@NextMeetingLabel</h3>
-            <span>@NextMeetingSubLabel</span>
-        </article>
-    </section>
+    @if (IsDashboardRoute && !IsEnterpriseOwner)
+    {
+        <section class="dashboard-alert">
+            <h2>Acesso restrito</h2>
+            <p>Apenas a empresa dona desta agenda pode acessar o dashboard privado.</p>
+            <button class="button primary" type="button" @onclick="GoToPublicPage">Ver página pública</button>
+        </section>
+    }
+    else
+    {
+        <section class="dashboard-stats">
+            <article class="stat-card">
+                <p>Usuario ativo</p>
+                <h3>@(currentPrincipal?.DisplayName ?? "Visitante")</h3>
+                <span>@(currentPrincipal?.Email ?? "Acesse pela tela inicial para criar ou remover reunioes")</span>
+            </article>
+            <article class="stat-card">
+                <p>Enterprise</p>
+                <h3>@EnterpriseName</h3>
+                <span>@EnterpriseSlug</span>
+            </article>
+            <article class="stat-card">
+                <p>@(IsDashboardRoute ? "Reunioes hoje" : "Solicitacoes hoje")</p>
+                <h3>@TotalMeetingsToday</h3>
+                <span>@TodayRangeLabel</span>
+            </article>
+            @if (IsDashboardRoute)
+            {
+                <article class="stat-card">
+                    <p>Semana atual</p>
+                    <h3>@TotalMeetingsWeek</h3>
+                    <span>@WeekRangeLabel</span>
+                </article>
+                <article class="stat-card">
+                    <p>Proxima reuniao</p>
+                    <h3>@NextMeetingLabel</h3>
+                    <span>@NextMeetingSubLabel</span>
+                </article>
+            }
+            else
+            {
+                <article class="stat-card">
+                    <p>Importante</p>
+                    <h3>Solicitacoes são pendentes</h3>
+                    <span>Esta empresa confirmará ou recusará o agendamento.</span>
+                </article>
+            }
+        </section>
 
-    <section class="dashboard-grid">
-        <section class="calendar-panel">
+        @if (!IsDashboardRoute || IsEnterpriseOwner)
+    {
+        <section class="dashboard-grid">
+            <section class="calendar-panel">
             <div class="calendar-header">
                 <div>
                     <h2>Calendario</h2>
@@ -141,16 +174,19 @@
                                     <p>@meeting.Notes</p>
                                 }
                             </div>
-                            <button class="icon-button ghost" type="button" @onclick="() => RemoveMeetingAsync(meeting.Id)">
-                                Remover
-                            </button>
+                            @if (IsEnterpriseOwner)
+                            {
+                                <button class="icon-button ghost" type="button" @onclick="() => RemoveMeetingAsync(meeting.Id)">
+                                    Remover
+                                </button>
+                            }
                         </article>
                     }
                 }
             </div>
 
             <form class="meeting-form" @onsubmit="AddMeetingAsync" @onsubmit:preventDefault>
-                <h3>Adicionar reuniao</h3>
+                <h3>@(IsEnterpriseOwner ? "Adicionar reuniao" : "Solicitar reuniao")</h3>
 
                 <label for="meeting-title">Assunto</label>
                 <input id="meeting-title" @bind="newTitle" placeholder="Ex: Avaliacao inicial" />
@@ -160,6 +196,15 @@
 
                 <label for="meeting-phone">Telefone do cliente</label>
                 <input id="meeting-phone" @bind="newClientPhone" placeholder="Ex: 11999999999" />
+
+                @if (!IsEnterpriseOwner)
+                {
+                    <label for="meeting-email">E-mail do cliente</label>
+                    <input id="meeting-email" type="email" @bind="newClientEmail" placeholder="Ex: ana@exemplo.com" />
+
+                    <label for="meeting-cpf">CPF (opcional)</label>
+                    <input id="meeting-cpf" @bind="newClientCpf" placeholder="Somente numeros" />
+                }
 
                 <div class="form-row">
                     <div>
@@ -178,7 +223,7 @@
                 <div class="form-actions">
                     <button class="button ghost" type="button" @onclick="ClearForm">Limpar</button>
                     <button class="button primary" type="submit" disabled="@isSubmittingMeeting">
-                        @(isSubmittingMeeting ? "Salvando..." : "Salvar reuniao")
+                        @(isSubmittingMeeting ? "Enviando..." : (IsEnterpriseOwner ? "Salvar reuniao" : "Solicitar reuniao"))
                     </button>
                 </div>
 
@@ -189,8 +234,9 @@
             </form>
         </aside>
     </section>
+    }
+}
 </main>
-
 @code {
     [Parameter]
     public string? EnterpriseSlug { get; set; }
@@ -204,6 +250,8 @@
     private string newTitle = string.Empty;
     private string newClient = string.Empty;
     private string newClientPhone = string.Empty;
+    private string newClientEmail = string.Empty;
+    private string newClientCpf = string.Empty;
     private string newNotes = string.Empty;
     private string newTime = "09:00";
     private int newDuration = 60;
@@ -211,6 +259,32 @@
     private string loadError = string.Empty;
     private bool isLoading;
     private bool isSubmittingMeeting;
+
+    private bool IsDashboardRoute => Navigation.Uri.TrimEnd('/').EndsWith("/dashboard", StringComparison.OrdinalIgnoreCase);
+    private bool IsPublicPage => !IsDashboardRoute;
+    private bool IsDashboardAccessAllowed => IsDashboardRoute && IsEnterpriseOwner;
+    private bool IsEnterpriseOwner =>
+        currentPrincipal is not null
+        && currentPrincipal.AccountType == "Enterprise"
+        && string.Equals(currentPrincipal.Slug, CurrentEnterpriseSlug, StringComparison.OrdinalIgnoreCase);
+
+    private string HeroEyebrow =>
+        IsDashboardRoute
+            ? (currentPrincipal is null ? "AgendAI" : $"{EnterpriseName} | {currentPrincipal.DisplayName}")
+            : "Página pública";
+
+    private string HeroTitle =>
+        IsDashboardRoute
+            ? $"Reuniões da {EnterpriseName}"
+            : $"Agende com {EnterpriseName}";
+
+    private string HeroDescription =>
+        IsDashboardRoute
+            ? "Acompanhe os compromissos desta empresa e gerencie sua agenda."
+            : "Solicite uma reunião à empresa sem precisar estar logado como ela.";
+
+    private string EnterprisePageUrl => $"/e/{CurrentEnterpriseSlug}";
+    private string EnterpriseDashboardUrl => $"/e/{CurrentEnterpriseSlug}/dashboard";
 
     private IEnumerable<DateTime> CalendarDays => BuildCalendarDays();
 
@@ -239,9 +313,6 @@
     private string WeekRangeLabel =>
         $"{StartOfWeek(DateTime.Today).ToString("dd MMM", _culture)} - {EndOfWeek(DateTime.Today).ToString("dd MMM", _culture)}";
 
-    private string HeroEyebrow =>
-        currentPrincipal is null ? "AgendAI" : $"{EnterpriseName} | {currentPrincipal.DisplayName}";
-
     private string CurrentEnterpriseSlug => string.IsNullOrWhiteSpace(EnterpriseSlug)
         ? "demo"
         : EnterpriseSlug.Trim().ToLowerInvariant();
@@ -268,9 +339,29 @@
         currentPrincipal = SessionState.CurrentPrincipal;
         isLoading = true;
 
+        if (IsPublicPage && currentPrincipal?.AccountType == "User")
+        {
+            if (string.IsNullOrWhiteSpace(newClient))
+            {
+                newClient = currentPrincipal.DisplayName;
+            }
+            if (string.IsNullOrWhiteSpace(newClientEmail))
+            {
+                newClientEmail = currentPrincipal.Email;
+            }
+        }
+
         try
         {
-            await LoadMeetingsAsync(CurrentEnterpriseSlug);
+            if (IsDashboardRoute && !IsEnterpriseOwner)
+            {
+                loadError = "Apenas a empresa dona desta agenda pode acessar o dashboard privado.";
+                _meetings = [];
+            }
+            else
+            {
+                await LoadMeetingsAsync(CurrentEnterpriseSlug);
+            }
         }
         catch
         {
@@ -285,7 +376,18 @@
     private async Task LoadMeetingsAsync(string enterpriseSlug)
     {
         var client = HttpClientFactory.CreateClient("Api");
-        var meetings = await client.GetFromJsonAsync<List<MeetingDto>>($"/api/enterprises/{enterpriseSlug}/meetings");
+        client.AttachSession(SessionState);
+
+        if (IsDashboardRoute && !IsEnterpriseOwner)
+        {
+            return;
+        }
+
+        var url = IsDashboardRoute
+            ? $"/api/enterprises/{enterpriseSlug}/meetings"
+            : $"/api/enterprises/{enterpriseSlug}/meetings/public";
+
+        var meetings = await client.GetFromJsonAsync<List<MeetingDto>>(url);
         _meetings = meetings ?? [];
     }
 
@@ -314,6 +416,16 @@
         statusMessage = string.Empty;
     }
 
+    private void GoToPublicPage()
+    {
+        Navigation.NavigateTo(EnterprisePageUrl);
+    }
+
+    private void GoToDashboardPage()
+    {
+        Navigation.NavigateTo(EnterpriseDashboardUrl);
+    }
+
     private void PrepareQuickAdd()
     {
         GoToToday();
@@ -332,6 +444,8 @@
         newTitle = string.Empty;
         newClient = string.Empty;
         newClientPhone = string.Empty;
+        newClientEmail = string.Empty;
+        newClientCpf = string.Empty;
         newNotes = string.Empty;
         newTime = "09:00";
         newDuration = 60;
@@ -344,12 +458,6 @@
 
     private async Task AddMeetingAsync()
     {
-        if (currentPrincipal is null)
-        {
-            statusMessage = "Entre ou crie uma conta para salvar reunioes nesta Enterprise.";
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newClient))
         {
             statusMessage = "Informe assunto e cliente antes de salvar.";
@@ -367,6 +475,7 @@
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
+            client.AttachSession(SessionState);
             var request = new CreateMeetingRequest(
                 newTitle.Trim(),
                 newClient.Trim(),
@@ -374,15 +483,19 @@
                 startTime,
                 Math.Max(15, newDuration),
                 string.IsNullOrWhiteSpace(newClientPhone) ? null : newClientPhone.Trim(),
+                string.IsNullOrWhiteSpace(newClientEmail) ? null : newClientEmail.Trim(),
+                string.IsNullOrWhiteSpace(newClientCpf) ? null : newClientCpf.Trim(),
                 string.IsNullOrWhiteSpace(newNotes) ? null : newNotes.Trim(),
-                "Confirmada",
-                "Dashboard",
-                currentPrincipal.Id);
+                null,
+                IsEnterpriseOwner ? "Dashboard" : "PublicPage",
+                null);
 
             var response = await client.PostAsJsonAsync($"/api/enterprises/{CurrentEnterpriseSlug}/meetings", request);
             if (!response.IsSuccessStatusCode)
             {
-                statusMessage = "Nao foi possivel salvar a reuniao.";
+                statusMessage = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? "Ja existe reuniao nesse horario."
+                    : "Nao foi possivel salvar a reuniao.";
                 return;
             }
 
@@ -402,7 +515,9 @@
             }
 
             ResetFormFields();
-            statusMessage = "Reuniao salva no banco com sucesso.";
+            statusMessage = IsEnterpriseOwner
+                ? "Reuniao salva no banco com sucesso."
+                : "Solicitacao enviada. Aguarde confirmacao da empresa.";
         }
         catch
         {
@@ -416,15 +531,16 @@
 
     private async Task RemoveMeetingAsync(Guid meetingId)
     {
-        if (currentPrincipal is null)
+        if (!IsEnterpriseOwner)
         {
-            statusMessage = "Entre ou crie uma conta para remover reunioes.";
+            statusMessage = "Apenas a enterprise dona da agenda pode remover reunioes.";
             return;
         }
 
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
+            client.AttachSession(SessionState);
             var response = await client.DeleteAsync($"/api/enterprises/{CurrentEnterpriseSlug}/meetings/{meetingId}");
             if (!response.IsSuccessStatusCode)
             {

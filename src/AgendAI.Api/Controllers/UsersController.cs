@@ -1,5 +1,6 @@
 using AgendAI.Api.Contracts;
 using AgendAI.Api.Data;
+using AgendAI.Api.Infrastructure;
 using AgendAI.Api.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -59,7 +60,7 @@ public sealed class UsersController(
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<UserSummaryResponse>> Login(
+    public async Task<ActionResult<LoginResponse<UserSummaryResponse>>> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
@@ -85,15 +86,27 @@ public sealed class UsersController(
         }
 
         user.LastAccessAtUtc = DateTime.UtcNow;
+
+        var session = new Session
+        {
+            PrincipalType = "User",
+            UserId = user.Id,
+            EnterpriseId = null,
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(30)
+        };
+
+        dbContext.Sessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(new UserSummaryResponse(
+        var principal = new UserSummaryResponse(
             user.Id,
             user.FullName,
             user.Email,
             user.WhatsAppNumber,
             user.CreatedAtUtc,
-            user.LastAccessAtUtc));
+            user.LastAccessAtUtc);
+
+        return Ok(new LoginResponse<UserSummaryResponse>(principal, session.Token.ToString()));
     }
 }
-

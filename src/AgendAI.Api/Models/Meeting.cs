@@ -9,6 +9,8 @@ public sealed class Meeting
     public string Title { get; set; } = string.Empty;
     public string ClientName { get; set; } = string.Empty;
     public string? ClientPhone { get; set; }
+    public string? ClientEmail { get; set; }
+    public string? ClientCpf { get; set; }
     public string? Notes { get; set; }
     public string Status { get; set; } = "Confirmada";
     public string SourceChannel { get; set; } = "Dashboard";
