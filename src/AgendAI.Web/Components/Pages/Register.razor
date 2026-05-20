@@ -1,6 +1,5 @@
 @page "/register"
 
-@rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject UserSessionState SessionState
@@ -38,8 +37,8 @@
                 <input @bind="businessName" type="text" placeholder="Nome do negócio" />
             }
 
-            <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
-            <input @bind="email" type="email" placeholder="E-mail" />
+            <input value="@whatsAppNumber" @oninput="HandlePhoneInput" type="text" maxlength="15"
+                   placeholder="WhatsApp para lembretes" /> <input @bind="email" type="email" placeholder="E-mail" />
             <input @bind="password" type="password" placeholder="Senha" />
 
             <div class="account-type-group" aria-label="Tipo de conta">
@@ -70,7 +69,15 @@
                 Ja possui conta? Faça login
             </button>
         </form>
-
+        @if (showSuccessModal)
+        {
+            <div class="modal-overlay">
+                <div class="success-modal">
+                    <h3>Sucesso 🎉</h3>
+                    <p>@modalMessage</p>
+                </div>
+            </div>
+        }
         @if (!string.IsNullOrWhiteSpace(statusMessage))
         {
             <p class="api-message">@statusMessage</p>
@@ -90,40 +97,46 @@
 
     private string EnterpriseTitle => "Dashboard da Enterprise";
 
+    private bool showSuccessModal = false;
+    private string modalMessage = string.Empty;
+
     protected override async Task OnParametersSetAsync()
     {
         await Task.CompletedTask;
     }
 
     private async Task GoToDashboardAsync()
-{
-    if (accountType == "User" && string.IsNullOrWhiteSpace(fullName))
     {
-        statusMessage = "Informe seu nome.";
-        return;
-    }
-
-    if (accountType == "Enterprise" && string.IsNullOrWhiteSpace(businessName))
-    {
-        statusMessage = "Informe o nome do negocio.";
-        return;
-    }
-
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-    {
-        statusMessage = "Informe e-mail e senha.";
-        return;
-    }
-
-    isSubmitting = true;
-    statusMessage = string.Empty;
-
-    try
-    {
-        var client = HttpClientFactory.CreateClient("Api");
-
         if (accountType == "Enterprise")
         {
+            await RegisterEnterpriseAsync();
+            return;
+        }
+
+        await RegisterUserAsync();
+    }
+
+    private async Task RegisterEnterpriseAsync()
+    {
+        if (string.IsNullOrWhiteSpace(businessName))
+        {
+            statusMessage = "Informe o nome do negocio.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            statusMessage = "Informe e-mail e senha.";
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+
             var enterpriseRequest = new
             {
                 Name = businessName,
@@ -132,61 +145,122 @@
                 WhatsAppNumber = whatsAppNumber
             };
 
-            var enterpriseResponse = await client.PostAsJsonAsync("/api/enterprises/register", enterpriseRequest);
-            if (!enterpriseResponse.IsSuccessStatusCode)
+            var response = await client.PostAsJsonAsync("/api/enterprises/register", enterpriseRequest);
+
+            if (!response.IsSuccessStatusCode)
             {
                 statusMessage = "Erro ao criar empresa.";
                 return;
             }
 
-            var enterprise = await enterpriseResponse.Content.ReadFromJsonAsync<EnterpriseSummaryApiDto>();
+            var enterprise = await response.Content.ReadFromJsonAsync<EnterpriseSummaryApiDto>();
+
             if (enterprise is null)
             {
                 statusMessage = "Resposta inesperada da API.";
                 return;
             }
 
-            SessionState.SetPrincipal(new SessionPrincipalDto(
-                enterprise.Id,
-                "Enterprise",
-                enterprise.Name,
-                enterprise.Email));
+            modalMessage = "Empresa criada com sucesso!";
+            showSuccessModal = true;
 
-            Navigation.NavigateTo($"/e/{enterprise.Slug}");
+            StateHasChanged();
+
+            await Task.Delay(2500);
+
+            Navigation.NavigateTo("/login");
+        }
+        catch
+        {
+            statusMessage = "Erro ao conectar com a API.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task RegisterUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            statusMessage = "Informe seu nome.";
             return;
         }
 
-        var request = new
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            FullName = fullName,
-            Email = email,
-            Password = password,
-            WhatsAppNumber = whatsAppNumber
-        };
-
-        var response = await client.PostAsJsonAsync("/api/users/register", request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            statusMessage = response.StatusCode == System.Net.HttpStatusCode.Conflict
-                ? "Já existe uma conta com esse e-mail."
-                : "Erro ao criar conta.";
+            statusMessage = "Informe e-mail e senha.";
             return;
         }
 
-        statusMessage = "Conta criada com sucesso! Redirecionando...";
+        isSubmitting = true;
+        statusMessage = string.Empty;
 
-        await Task.Delay(1000);
-        Navigation.NavigateTo("/");
-    }
-    catch
-    {
-        statusMessage = "Erro ao conectar com a API.";
-    }
-    finally
-    {
-        isSubmitting = false;
-    }
-}
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
 
+            var request = new
+            {
+                FullName = fullName,
+                Email = email,
+                Password = password,
+                WhatsAppNumber = whatsAppNumber
+            };
+
+            var response = await client.PostAsJsonAsync("/api/users/register", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                statusMessage = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? "Já existe uma conta com esse e-mail."
+                    : "Erro ao criar conta.";
+                return;
+            }
+
+   
+            modalMessage = "Conta criada com sucesso!";
+            showSuccessModal = true;
+
+            StateHasChanged();
+
+            await Task.Delay(2500);
+
+            Navigation.NavigateTo("/login");
+        }
+        catch
+        {
+            statusMessage = "Erro ao conectar com a API.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+    private void HandlePhoneInput(ChangeEventArgs e)
+    {
+        var input = e.Value?.ToString() ?? string.Empty;
+
+        // remove tudo que nao for numero
+        var numbers = new string(input.Where(char.IsDigit).ToArray());
+
+        // limita a 11 digitos
+        if (numbers.Length > 11)
+            numbers = numbers[..11];
+
+        // aplica mascara
+        if (numbers.Length <= 2)
+        {
+            whatsAppNumber = numbers;
+        }
+        else if (numbers.Length <= 7)
+        {
+            whatsAppNumber = $"({numbers[..2]}) {numbers[2..]}";
+        }
+        else
+        {
+            whatsAppNumber = $"({numbers[..2]}) {numbers[2..7]}-{numbers[7..]}";
+        }
+    }
 }

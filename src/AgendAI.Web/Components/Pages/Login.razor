@@ -1,5 +1,4 @@
-@page "/"
-@rendermode InteractiveServer
+@page "/login"
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject UserSessionState SessionState
@@ -10,9 +9,10 @@
     <section class="login-brand-panel">
         <div class="login-brand-copy">
             <span class="eyebrow">Plataforma AgendAI</span>
-            <h1>@EnterpriseTitle</h1>
+            <h1>@HeroTitle</h1>
+
             <p>
-                Acesse o painel desta Enterprise para acompanhar reunioes, clientes e proximos atendimentos em tempo real.
+                @HeroDescription
             </p>
         </div>
 
@@ -27,74 +27,57 @@
         <p class="api-message">@apiMessage</p>
 
         <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
-            <input @bind="fullName" type="text" placeholder="Seu nome" />
-            <input @bind="businessName" type="text" placeholder="Nome do negocio" />
-            <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
+
+  
+
             <input @bind="email" type="email" placeholder="E-mail" />
+
             <input @bind="password" type="password" placeholder="Senha" />
 
             <div class="account-type-group" aria-label="Tipo de conta">
                 <InputRadioGroup @bind-Value="accountType">
+
                     <label class="account-type-option @(accountType == "User" ? "active" : "")">
                         <InputRadio Value="@("User")" />
+
                         <span class="account-type-dot"></span>
+
                         <span>
                             <strong>Usuario</strong>
-                            <small>Agenda pessoal e marcar horario em empresas</small>
+                            <small>
+                                Agenda pessoal e marcar horario em empresas
+                            </small>
                         </span>
                     </label>
 
                     <label class="account-type-option @(accountType == "Enterprise" ? "active" : "")">
                         <InputRadio Value="@("Enterprise")" />
+
                         <span class="account-type-dot"></span>
+
                         <span>
                             <strong>Empresa</strong>
-                            <small>Agenda da Equipe e dos Clientes agendados</small>
+                            <small>
+                                Agenda da Equipe e dos Clientes
+                            </small>
                         </span>
                     </label>
+
                 </InputRadioGroup>
             </div>
 
-            <button type="submit" disabled="@isSubmitting">@(isSubmitting ? "Entrando..." : "Fazer login")</button>
+            <button type="submit" disabled="@isSubmitting">
+                @(isSubmitting ? "Entrando..." : "Fazer login")
+            </button>
 
-            <button @onclick='() => Navigation.NavigateTo("/register")' disabled="@isSubmitting">
-                Não possui conta?  Registre-se
+            <button type="button" @onclick='() => Navigation.NavigateTo("/register")' disabled="@isSubmitting">
+
+                Não possui conta? Registre-se
+
             </button>
 
         </form>
 
-@* <form class="login-form" @onsubmit="GoToDashboardAsync" @onsubmit:preventDefault>
-
-    <input @bind="fullName" type="text" placeholder="Seu nome" />
-    <input @bind="email" type="email" placeholder="E-mail" />
-    <input @bind="password" type="password" placeholder="Senha" />
-
-    <input @bind="whatsAppNumber" type="text" placeholder="WhatsApp para lembretes" />
-
-    @if (accountType == "Enterprise")
-    {
-        <input @bind="businessName" type="text" placeholder="Nome do negócio" />
-    }
-
-    <div class="account-type-group">
-        <InputRadioGroup @bind-Value="accountType">
-            <label class="account-type-option @(accountType == "User" ? "active" : "")">
-                <InputRadio Value="@("User")" />
-                Usuário
-            </label>
-
-            <label class="account-type-option @(accountType == "Enterprise" ? "active" : "")">
-                <InputRadio Value="@("Enterprise")" />
-                Empresa
-            </label>
-        </InputRadioGroup>
-    </div>
-
-    <button type="submit" disabled="@isSubmitting">
-        @(isSubmitting ? "Entrando..." : "Entrar ou criar conta")
-    </button>
-
-</form> *@
         @if (!string.IsNullOrWhiteSpace(statusMessage))
         {
             <p class="api-message">@statusMessage</p>
@@ -104,16 +87,20 @@
 
 @code {
     private string accountType = "User";
-    private string fullName = string.Empty;
-    private string businessName = string.Empty;
-    private string whatsAppNumber = string.Empty;
     private string email = string.Empty;
     private string password = string.Empty;
     private string apiMessage = "Carregando mensagem da API...";
     private string statusMessage = string.Empty;
     private bool isSubmitting;
+    private string HeroTitle =>
+        accountType == "Enterprise"
+            ? "Dashboard da Empresa"
+            : "Agenda pessoal";
 
-    private string EnterpriseTitle => "Dashboard da Enterprise";
+    private string HeroDescription =>
+        accountType == "Enterprise"
+            ? "Gerencie reunioes, clientes e atendimentos da sua equipe em tempo real."
+            : "Organize seus compromissos, acompanhe horarios e agende reunioes com empresas.";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -130,11 +117,6 @@
 
     private async Task GoToDashboardAsync()
     {
-        if (accountType == "Enterprise" && string.IsNullOrWhiteSpace(businessName))
-        {
-            statusMessage = "Informe o nome do negocio para continuar.";
-            return;
-        }
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
@@ -201,7 +183,8 @@
                 user.FullName,
                 user.Email));
 
-            Navigation.NavigateTo("/e/demo");
+            Navigation.NavigateTo("/my-dashboard");
+            return;
         }
         catch
         {

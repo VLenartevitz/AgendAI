@@ -53,7 +53,7 @@ Na raiz do repositório:
 docker compose up --build
 ```
 
-- **Blazor (Web):** http://localhost:5001  
+- **Blazor (Web):** http://localhost:5001/my-dashboard
 - **API:** http://localhost:5000  
 
 Para rodar em segundo plano:

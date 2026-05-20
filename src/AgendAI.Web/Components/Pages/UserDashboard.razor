@@ -1,0 +1,560 @@
+@page "/my-dashboard"
+@using System.Globalization
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject UserSessionState SessionState
+
+<PageTitle>Meu Dashboard</PageTitle>
+
+<main class="dashboard-shell">
+
+    @if (!string.IsNullOrWhiteSpace(loadError))
+    {
+        <section class="dashboard-alert">@loadError</section>
+    }
+
+    <header class="dashboard-hero">
+        <div>
+            <img class="hero-logo" src="/images/logoAgendAI.png" alt="AgendAI" />
+
+            <span class="eyebrow">Minha Agenda</span>
+
+            <h1>Olá, @currentPrincipal?.DisplayName 👋</h1>
+
+            <p class="subtitle">
+                Gerencie seus compromissos pessoais e acompanhe sua agenda em tempo real.
+            </p>
+        </div>
+
+        <div class="hero-actions">
+            <button class="button ghost" type="button" @onclick="GoToToday">
+                Ir para hoje
+            </button>
+
+            <button class="button primary" type="button" @onclick="PrepareQuickAdd">
+                Novo compromisso
+            </button>
+        </div>
+    </header>
+
+    <section class="dashboard-stats">
+        <article class="stat-card">
+            <p>Usuário logado</p>
+            <h3>@(currentPrincipal?.DisplayName ?? "--")</h3>
+            <span>@(currentPrincipal?.Email ?? "--")</span>
+        </article>
+
+        <article class="stat-card">
+            <p>Compromissos hoje</p>
+            <h3>@TotalMeetingsToday</h3>
+            <span>@TodayRangeLabel</span>
+        </article>
+
+        <article class="stat-card">
+            <p>Semana atual</p>
+            <h3>@TotalMeetingsWeek</h3>
+            <span>@WeekRangeLabel</span>
+        </article>
+
+        <article class="stat-card">
+            <p>Próximo compromisso</p>
+            <h3>@NextMeetingLabel</h3>
+            <span>@NextMeetingSubLabel</span>
+        </article>
+    </section>
+
+    <section class="dashboard-grid">
+
+        <!-- CALENDÁRIO -->
+        <section class="calendar-panel">
+
+            <div class="calendar-header">
+                <div>
+                    <h2>Calendário</h2>
+                    <p>@CurrentMonthLabel</p>
+                </div>
+
+                <div class="calendar-nav">
+                    <button class="icon-button" type="button" @onclick="PreviousMonth">
+                        Anterior
+                    </button>
+
+                    <button class="icon-button" type="button" @onclick="NextMonth">
+                        Próximo
+                    </button>
+                </div>
+            </div>
+
+            <div class="calendar-weekdays">
+                <span>Seg</span>
+                <span>Ter</span>
+                <span>Qua</span>
+                <span>Qui</span>
+                <span>Sex</span>
+                <span>Sab</span>
+                <span>Dom</span>
+            </div>
+
+            <div class="calendar-grid">
+
+                @foreach (var day in CalendarDays)
+                {
+                    var classes = "calendar-day";
+
+                    if (day.Month != _currentMonth.Month)
+                    {
+                        classes += " is-outside";
+                    }
+
+                    if (day.Date == DateTime.Today)
+                    {
+                        classes += " is-today";
+                    }
+
+                    if (day.Date == _selectedDate.Date)
+                    {
+                        classes += " is-selected";
+                    }
+
+                    var count = GetMeetingCount(day);
+
+                    <button class="@classes"
+                            type="button"
+                            @onclick="() => SelectDate(day)">
+
+                        <span class="day-number">@day.Day</span>
+
+                        @if (count > 0)
+                        {
+                            <span class="day-pill">@count</span>
+                        }
+                    </button>
+                }
+
+            </div>
+
+        </section>
+
+        <!-- AGENDA -->
+        <aside class="agenda-panel">
+
+            <div class="agenda-header">
+                <div>
+                    <h2>Compromissos do dia</h2>
+                    <p>@SelectedDateLabel</p>
+                </div>
+
+                <span class="agenda-count">
+                    @MeetingsForSelected.Count() compromissos
+                </span>
+            </div>
+
+            <div class="agenda-list">
+
+                @if (isLoading)
+                {
+                    <p class="empty-state">Carregando agenda...</p>
+                }
+                else if (!MeetingsForSelected.Any())
+                {
+                    <p class="empty-state">
+                        Nenhum compromisso registrado para este dia.
+                    </p>
+                }
+                else
+                {
+                    @foreach (var meeting in MeetingsForSelectedOrdered)
+                    {
+                        <article class="agenda-item">
+
+                            <div>
+                                <span class="agenda-time">
+                                    @meeting.StartTime.ToString("HH:mm")
+                                </span>
+
+                                <h4>@meeting.Title</h4>
+
+                                <p>@meeting.ClientName</p>
+
+                                @if (!string.IsNullOrWhiteSpace(meeting.Notes))
+                                {
+                                    <p>@meeting.Notes</p>
+                                }
+                            </div>
+
+                            <button class="icon-button ghost"
+                                    type="button"
+                                    @onclick="() => RemoveMeetingAsync(meeting.Id)">
+                                Remover
+                            </button>
+
+                        </article>
+                    }
+                }
+
+            </div>
+
+            <!-- FORM -->
+            <form class="meeting-form"
+                  @onsubmit="AddMeetingAsync"
+                  @onsubmit:preventDefault>
+
+                <h3>Adicionar compromisso</h3>
+
+                <label>Assunto</label>
+                <input @bind="newTitle" placeholder="Ex: Estudar inglês" />
+
+                <label>Descrição</label>
+                <input @bind="newClient" placeholder="Ex: Aula conversação" />
+
+                <label>Horário</label>
+                <input type="time"
+                       value="@newTime"
+                       @onchange="OnTimeChanged" />
+
+                <label>Duração (min)</label>
+                <input type="number"
+                       min="15"
+                       step="15"
+                       @bind="newDuration" />
+
+                <label>Observações</label>
+                <textarea @bind="newNotes"></textarea>
+
+                <div class="form-actions">
+
+                    <button class="button ghost"
+                            type="button"
+                            @onclick="ClearForm">
+                        Limpar
+                    </button>
+
+                    <button class="button primary"
+                            type="submit"
+                            disabled="@isSubmittingMeeting">
+
+                        @(isSubmittingMeeting
+                            ? "Salvando..."
+                            : "Salvar compromisso")
+
+                    </button>
+
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <p class="form-status">@statusMessage</p>
+                }
+
+            </form>
+
+        </aside>
+
+    </section>
+
+</main>
+
+@code {
+
+    private readonly CultureInfo _culture = new("pt-BR");
+
+    private SessionPrincipalDto? currentPrincipal;
+
+    private DateTime _currentMonth =
+        new(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    private DateTime _selectedDate = DateTime.Today;
+
+    private List<MeetingDto> _meetings = [];
+
+    private bool isLoading;
+    private bool isSubmittingMeeting;
+
+    private string loadError = string.Empty;
+    private string statusMessage = string.Empty;
+
+    private string newTitle = string.Empty;
+    private string newClient = string.Empty;
+    private string newNotes = string.Empty;
+    private string newTime = "09:00";
+    private int newDuration = 60;
+
+    private IEnumerable<DateTime> CalendarDays => BuildCalendarDays();
+
+    private IEnumerable<MeetingDto> MeetingsForSelected =>
+        _meetings.Where(x =>
+            x.ScheduledDate ==
+            DateOnly.FromDateTime(_selectedDate));
+
+    private IEnumerable<MeetingDto> MeetingsForSelectedOrdered =>
+        MeetingsForSelected.OrderBy(x => x.StartTime);
+
+    private int TotalMeetingsToday =>
+        _meetings.Count(x =>
+            x.ScheduledDate ==
+            DateOnly.FromDateTime(DateTime.Today));
+
+    private int TotalMeetingsWeek =>
+        _meetings.Count(x =>
+        {
+            var date = x.ScheduledDate.ToDateTime(TimeOnly.MinValue);
+
+            return date.Date >= StartOfWeek(DateTime.Today)
+                && date.Date <= EndOfWeek(DateTime.Today);
+        });
+
+    private string CurrentMonthLabel =>
+        _currentMonth.ToString("MMMM yyyy", _culture);
+
+    private string SelectedDateLabel =>
+        _selectedDate.ToString("dddd, dd 'de' MMMM", _culture);
+
+    private string TodayRangeLabel =>
+        DateTime.Today.ToString("dd MMM", _culture);
+
+    private string WeekRangeLabel =>
+        $"{StartOfWeek(DateTime.Today):dd MMM} - {EndOfWeek(DateTime.Today):dd MMM}";
+
+    private MeetingDto? NextMeeting =>
+        _meetings
+            .Where(x => ToDateTime(x) >= DateTime.Now)
+            .OrderBy(ToDateTime)
+            .FirstOrDefault();
+
+    private string NextMeetingLabel =>
+        NextMeeting is null
+            ? "--"
+            : NextMeeting.ScheduledDate.ToString("dd/MM/yyyy");
+
+    private string NextMeetingSubLabel =>
+        NextMeeting is null
+            ? "Sem compromissos futuros"
+            : $"{NextMeeting.StartTime:HH\\:mm} | {NextMeeting.Title}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentPrincipal = SessionState.CurrentPrincipal;
+
+        if (currentPrincipal is null
+            || currentPrincipal.AccountType != "User")
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            await LoadMeetingsAsync();
+        }
+        catch
+        {
+            loadError = "Não foi possível carregar sua agenda.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadMeetingsAsync()
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+
+        var meetings =
+            await client.GetFromJsonAsync<List<MeetingDto>>(
+                $"/api/users/{currentPrincipal!.Id}/meetings");
+
+        _meetings = meetings ?? [];
+    }
+
+    private async Task AddMeetingAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            statusMessage = "Informe um assunto.";
+            return;
+        }
+
+        if (!TimeOnly.TryParse(newTime, out var startTime))
+        {
+            statusMessage = "Horário inválido.";
+            return;
+        }
+
+        isSubmittingMeeting = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+
+            var request = new CreateMeetingRequest(
+                newTitle.Trim(),
+                newClient.Trim(),
+                DateOnly.FromDateTime(_selectedDate),
+                startTime,
+                Math.Max(15, newDuration),
+                null,
+                string.IsNullOrWhiteSpace(newNotes)
+                    ? null
+                    : newNotes.Trim(),
+                "Confirmada",
+                "MyDashboard",
+                currentPrincipal!.Id
+            );
+
+            var response =
+                await client.PostAsJsonAsync(
+                    "/api/users/meetings",
+                    request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                statusMessage = "Erro ao salvar compromisso.";
+                return;
+            }
+
+            var created =
+                await response.Content.ReadFromJsonAsync<MeetingDto>();
+
+            if (created is not null)
+            {
+                _meetings.Add(created);
+            }
+
+            ResetFormFields();
+
+            statusMessage = "Compromisso salvo com sucesso.";
+        }
+        catch
+        {
+            statusMessage = "Erro ao salvar compromisso.";
+        }
+        finally
+        {
+            isSubmittingMeeting = false;
+        }
+    }
+
+    private async Task RemoveMeetingAsync(Guid meetingId)
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+
+            var response =
+                await client.DeleteAsync(
+                    $"/api/users/meetings/{meetingId}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                statusMessage = "Erro ao remover compromisso.";
+                return;
+            }
+
+            _meetings =
+                _meetings
+                    .Where(x => x.Id != meetingId)
+                    .ToList();
+
+            statusMessage = "Compromisso removido.";
+        }
+        catch
+        {
+            statusMessage = "Erro ao remover compromisso.";
+        }
+    }
+
+    private void PreviousMonth()
+    {
+        _currentMonth = _currentMonth.AddMonths(-1);
+    }
+
+    private void NextMonth()
+    {
+        _currentMonth = _currentMonth.AddMonths(1);
+    }
+
+    private void SelectDate(DateTime day)
+    {
+        _selectedDate = day;
+    }
+
+    private void GoToToday()
+    {
+        _selectedDate = DateTime.Today;
+
+        _currentMonth =
+            new DateTime(
+                DateTime.Today.Year,
+                DateTime.Today.Month,
+                1);
+    }
+
+    private void PrepareQuickAdd()
+    {
+        GoToToday();
+        ResetFormFields();
+    }
+
+    private void ClearForm()
+    {
+        ResetFormFields();
+    }
+
+    private void ResetFormFields()
+    {
+        newTitle = string.Empty;
+        newClient = string.Empty;
+        newNotes = string.Empty;
+        newTime = "09:00";
+        newDuration = 60;
+    }
+
+    private void OnTimeChanged(ChangeEventArgs e)
+    {
+        newTime = e.Value?.ToString() ?? "09:00";
+    }
+
+    private int GetMeetingCount(DateTime day)
+        => _meetings.Count(x =>
+            x.ScheduledDate ==
+            DateOnly.FromDateTime(day));
+
+    private IEnumerable<DateTime> BuildCalendarDays()
+    {
+        var firstDay =
+            new DateTime(
+                _currentMonth.Year,
+                _currentMonth.Month,
+                1);
+
+        var offset =
+            ((int)firstDay.DayOfWeek
+            - (int)DayOfWeek.Monday + 7) % 7;
+
+        var startDate = firstDay.AddDays(-offset);
+
+        for (var i = 0; i < 42; i++)
+        {
+            yield return startDate.AddDays(i);
+        }
+    }
+
+    private static DateTime StartOfWeek(DateTime date)
+    {
+        var diff =
+            (7 + (int)date.DayOfWeek
+            - (int)DayOfWeek.Monday) % 7;
+
+        return date.AddDays(-diff).Date;
+    }
+
+    private static DateTime EndOfWeek(DateTime date)
+        => StartOfWeek(date).AddDays(6);
+
+    private static DateTime ToDateTime(MeetingDto meeting)
+        => meeting.ScheduledDate.ToDateTime(meeting.StartTime);
+
+}
